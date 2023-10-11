@@ -5,5 +5,5 @@ click
 RPi.GPIO
 PySimpleGUI
 thrift
-busio
+#busio
 opencv-python

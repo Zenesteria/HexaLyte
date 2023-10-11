@@ -2,10 +2,10 @@ import os
 import logging
 import sys
 import signal
-from acp.hexapod import Hexapod
-from acp.servo import Servo
-from acp.controller_xbox import XboxOneController
-from acp.controller_network import NetworkController
+from hexapod import Hexapod
+from servo import Servo
+from controller_xbox import XboxOneController
+#from controller_network import NetworkController
 from common import set_disposition, rconf, map
 from typing import List
 from dummy import DummyServo, DummyLed
@@ -29,7 +29,7 @@ except ModuleNotFoundError as e:
     servo_error = e 
 
 try:
-    from acp.led import Led
+    from led import Led
     LED_IMPORT_OK=True
 except ModuleNotFoundError as e:
     LED_IMPORT_OK=False
@@ -47,7 +47,6 @@ class AcpRobot(Hexapod):
 
     CONTROLLERS = {
         "xbox": XboxOneController,
-        "network": NetworkController
     }
 
     def __init__(self, config_file_path: str,
@@ -91,18 +90,18 @@ class AcpRobot(Hexapod):
         self.pca1.frequency = self.PCA_FREQ
         self.pca2.frequency = self.PCA_FREQ
 
-        self.coxa1_servo  = Servo(ada_servo.Servo(self.pca2.channels[6]))
-        self.femur1_servo = Servo(ada_servo.Servo(self.pca2.channels[7]))
-        self.tibia1_servo = Servo(ada_servo.Servo(self.pca2.channels[8]))
+        self.coxa1_servo  = Servo(ada_servo.Servo(self.pca2.channels[0]))
+        self.femur1_servo = Servo(ada_servo.Servo(self.pca2.channels[1]))
+        self.tibia1_servo = Servo(ada_servo.Servo(self.pca2.channels[2]))
         self.coxa2_servo  = Servo(ada_servo.Servo(self.pca2.channels[3]))
         self.femur2_servo = Servo(ada_servo.Servo(self.pca2.channels[4]))
         self.tibia2_servo = Servo(ada_servo.Servo(self.pca2.channels[5]))
-        self.coxa3_servo  = Servo(ada_servo.Servo(self.pca2.channels[0]))
-        self.femur3_servo = Servo(ada_servo.Servo(self.pca2.channels[1]))
-        self.tibia3_servo = Servo(ada_servo.Servo(self.pca2.channels[2]))
+        self.coxa3_servo  = Servo(ada_servo.Servo(self.pca2.channels[6]))
+        self.femur3_servo = Servo(ada_servo.Servo(self.pca2.channels[7]))
+        self.tibia3_servo = Servo(ada_servo.Servo(self.pca2.channels[12]))
         self.coxa4_servo  = Servo(ada_servo.Servo(self.pca1.channels[6]))
-        self.femur4_servo = Servo(ada_servo.Servo(self.pca1.channels[7]), reverse=True)
-        self.tibia4_servo = Servo(ada_servo.Servo(self.pca1.channels[8]), reverse=True)
+        self.femur4_servo = Servo(ada_servo.Servo(self.pca1.channels[8]), reverse=True)
+        self.tibia4_servo = Servo(ada_servo.Servo(self.pca1.channels[9]), reverse=True)
         self.coxa5_servo  = Servo(ada_servo.Servo(self.pca1.channels[3]))
         self.femur5_servo = Servo(ada_servo.Servo(self.pca1.channels[4]), reverse=True)
         self.tibia5_servo = Servo(ada_servo.Servo(self.pca1.channels[5]), reverse=True)
@@ -111,8 +110,8 @@ class AcpRobot(Hexapod):
         self.tibia6_servo = Servo(ada_servo.Servo(self.pca1.channels[2]), reverse=True)
 
 
-        self.head_tilt = Servo(ada_servo.Servo(self.pca2.channels[13]), reverse=True)
-        self.head_rotate = Servo(ada_servo.Servo(self.pca2.channels[12]))
+        self.head_tilt = Servo(ada_servo.Servo(self.pca2.channels[15]), reverse=True)
+        self.head_rotate = Servo(ada_servo.Servo(self.pca2.channels[14]))
         
 
         self.all_servos: List[Servo] = [
