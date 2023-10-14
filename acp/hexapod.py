@@ -21,8 +21,28 @@ import json
 from typing import List, Dict
 from common import map, constrain
 from dummy import DummyController, DummyServo
+import socketio
 
+sio = socketio.Client()
 logger = logging.getLogger(__name__)
+
+@sio.on('connect')
+def on_connect():
+    logger.info('Connected to the server')
+
+# @sio.on('message')
+# def on_message(data):
+#     print(f'Message from the server: {data}')
+
+@sio.on('response')
+def on_response(data):
+    logger.info(f'Response from the server: {data} \n')
+
+@sio.on('disconnect')
+def on_disconnect():
+    logger.info('Disconnected from the server')
+
+
 
 
 class Hexapod:

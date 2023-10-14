@@ -60,6 +60,8 @@ class AcpRobot(Hexapod):
             self.controller = self.CONTROLLERS.get(controller)()
         elif controller is None:
             logger.warning("No controller provided")
+        elif controller == 'telemetry':
+            logger.info('Telemetry Mode')
         else:
             raise ValueError("Controller %s not found. Valid options: %s", self.CONTROLLERS)
         self.debug_servo = debug_servo

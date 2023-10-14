@@ -5,7 +5,7 @@ from acp_robot import AcpRobot
 
 @click.command()
 @click.argument("config_file_path", default="./robot_config.json")
-@click.option("--controller", type=str, default='xbox')
+@click.option("--controller", type=str, default='telemetry')
 @click.option("--debug-servo", is_flag=True, default=False)
 @click.option("--debug-led", is_flag=True, default=False)
 @click.option("--log-level", type=str, default="INFO")
