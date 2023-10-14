@@ -25,22 +25,24 @@ import socketio
 
 sio = socketio.Client()
 logger = logging.getLogger(__name__)
-
+ctrl_data = {}
+telemetry = True # change if no telemetry
+is_received = False
 @sio.on('connect')
 def on_connect():
-    logger.info('Connected to the server')
-
-# @sio.on('message')
-# def on_message(data):
-#     print(f'Message from the server: {data}')
+  logger.info('Connected to the server')
 
 @sio.on('response')
 def on_response(data):
-    logger.info(f'Response from the server: {data} \n')
+  ctrl_data = data
+  test_data = ctrl_data['share']
+  is_received = True
+  #logger.info(f'Response from the server: {test_data}')
 
 @sio.on('disconnect')
 def on_disconnect():
-    logger.info('Disconnected from the server')
+  logger.info('Disconnected from the server')
+
 
 
 
@@ -143,11 +145,19 @@ class Hexapod:
   #***********************************************************************
   def __init__(self, config_file_path: str):
     
+      
+    server_url = 'https://hexametry.onrender.com'  # Replace with the actual IP of your server
+    # server_url = 'https://35.160.120.126'  # Replace with the actual IP of your server
+    # server_url = 'http://192.168.1.187:3000'  # Replace with the actual IP of your server
+    sio.connect(server_url)
+    
     self.cal_values = {
       "coxa": self.COXA_CAL,
       "femur": self.FEMUR_CAL,
       "tibia": self.TIBIA_CAL
     }
+    
+    
 
     self.config_file_path = config_file_path
     self.reload_config()
@@ -212,6 +222,7 @@ class Hexapod:
 
     self.cal_pntr: int = 0
     self.cal_inner_pntr: int = 0
+    
 
   #***********************************************************************
   # Main Program
@@ -278,6 +289,11 @@ class Hexapod:
   # Process gamepad controller inputs
   #***********************************************************************
   def process_gamepad(self):
+    if telemetry:
+      if not is_received:
+        logger.info('no ctrl data')
+      else:
+        logger.info(ctrl_data)
     if self.controller.button_pressed(self.PAD_DOWN) and self.mode != self.MODE_CALI:    #stop & select gait 0
       self.set_mode(self.MODE_IDLE)
       self.set_gait(self.GAIT_TRIP)
@@ -315,12 +331,16 @@ class Hexapod:
         self.gait_speed = 1
       else:
         self.gait_speed = 0
-    if self.controller.button_pressed(self.BUT_SELECT):      #set all servos to 90 degrees for calibration
+    if self.controller.button_pressed(self.BUT_SELECT) and not telemetry:      #set all servos to 90 degrees for calibration
       if self.mode != self.MODE_CALI:
+        #logger.info('WORKING')
         self.set_mode(self.MODE_CALI)
       else:
-        self.set_mode(self.MODE_IDLE)
-        self.set_gait(self.GAIT_DEFAULT)
+        if ctrl_data['share'] == True:
+          self.set_mode(self.MODE_CALI)
+        else:
+          self.set_mode(self.MODE_IDLE)
+          self.set_gait(self.GAIT_DEFAULT)
     if self.mode == self.MODE_CALI:
       self.process_gamepad_calibration()
     if self.controller.button_pressed(self.BUT_TL) or self.controller.button_pressed(self.BUT_TR):
@@ -337,8 +357,16 @@ class Hexapod:
 
 
   def process_gamepad_calibration(self):
+    #logger.info('WORKING')
     pressed = False
-    if self.controller.button_pressed(self.BUT_SELECT):
+    if telemetry == True and ctrl_data['share'] == True:
+      
+      logger.info("coxa: %s", self.COXA_CAL)
+      logger.info("femur: %s", self.FEMUR_CAL)
+      logger.info("tibia: %s", self.TIBIA_CAL)
+      data, name, i = self.get_cal_pntr()
+      pressed = True
+    elif self.controller.button_pressed(self.BUT_SELECT):
       logger.info("coxa: %s", self.COXA_CAL)
       logger.info("femur: %s", self.FEMUR_CAL)
       logger.info("tibia: %s", self.TIBIA_CAL)
