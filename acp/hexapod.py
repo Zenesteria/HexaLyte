@@ -23,25 +23,9 @@ from common import map, constrain
 from dummy import DummyController, DummyServo
 import socketio
 
-sio = socketio.Client()
+
 logger = logging.getLogger(__name__)
-ctrl_data = {}
-telemetry = True # change if no telemetry
-is_received = False
-@sio.on('connect')
-def on_connect():
-  logger.info('Connected to the server')
 
-@sio.on('response')
-def on_response(data):
-  ctrl_data = data
-  test_data = ctrl_data['share']
-  is_received = True
-  #logger.info(f'Response from the server: {test_data}')
-
-@sio.on('disconnect')
-def on_disconnect():
-  logger.info('Disconnected from the server')
 
 
 
@@ -51,6 +35,9 @@ class Hexapod:
   #***********************************************************************
   # Constant Declarations
   #***********************************************************************
+  ctrl_data = {}
+  telemetry = True # change if no telemetry
+  is_received = False
   RAD_TO_DEG = 57.29577951
   M_PI = 3.141592
 
@@ -144,12 +131,25 @@ class Hexapod:
   # Initialization Routine
   #***********************************************************************
   def __init__(self, config_file_path: str):
-    
+    if self.telemetry:
+      self.tele_button_pressed = ''
+      self.tele_button_being_pressed = ''
+      self.sio = socketio.Client()
+      server_url = 'https://hexametry.onrender.com'  # Replace with the actual IP of your server
+      # server_url = 'https://35.160.120.126'  # Replace with the actual IP of your server
+      # server_url = 'http://192.168.1.187:3000'  # Replace with the actual IP of your server
+      self.sio.connect(server_url)
+      @self.sio.on('connect')
+      def on_connect():
+        logger.info('Connected to the server')
+
       
-    server_url = 'https://hexametry.onrender.com'  # Replace with the actual IP of your server
-    # server_url = 'https://35.160.120.126'  # Replace with the actual IP of your server
-    # server_url = 'http://192.168.1.187:3000'  # Replace with the actual IP of your server
-    sio.connect(server_url)
+
+      @self.sio.on('disconnect')
+      def on_disconnect():
+        logger.info('Disconnected from the server')
+      
+    
     
     self.cal_values = {
       "coxa": self.COXA_CAL,
@@ -231,7 +231,88 @@ class Hexapod:
     while True:
       self.loop()
       time.sleep(self.FRAME_TIME_MS/1000)
+  
+  def process_telemetry_data(self):
+    
+    
+    @self.sio.on('response')
+    def on_response(data):
+      self.ctrl_data = data
+      if self.ctrl_data['share']:
+        self.tele_button_pressed = 'share'
+      elif self.ctrl_data['up_arrow']:
+        self.tele_button_pressed = 'UP'
+      elif self.ctrl_data['down_arrow']:
+        self.tele_button_pressed = 'DOWN'
+      elif self.ctrl_data['left_arrow']:
+        self.tele_button_pressed = 'LEFT'
+      elif self.ctrl_data['right_arrow']:
+        self.tele_button_pressed = 'RIGHT'
+      elif self.ctrl_data['triangle']:
+        self.tele_button_pressed = 'TRIANGLE'
+      elif self.ctrl_data['x']:
+        self.tele_button_pressed = 'X'
+      elif self.ctrl_data['circle']:
+        self.tele_button_pressed = 'CIRCLE'
+      elif self.ctrl_data['square']:
+        self.tele_button_pressed = 'SQUARE'
+      else:
+        self.tele_button_pressed = ''
+      
 
+        
+      if self.tele_button_pressed == 'share':
+        #pass
+        #logger.info('CALI')
+        if self.mode != self.MODE_CALI:
+          #logger.info('WORKING')
+          self.set_mode(self.MODE_CALI)
+        else:
+          #logger.info('IDLE')
+          self.set_mode(self.MODE_IDLE)
+          self.set_gait(self.GAIT_DEFAULT)
+          
+      
+      if self.tele_button_pressed == 'DOWN' and self.mode != self.MODE_CALI:    #stop & select gait 0
+        self.set_mode(self.MODE_IDLE)
+        self.set_gait(self.GAIT_TRIP)
+        self.reset_position = True
+        #logger.info(self.mode)
+      if self.tele_button_pressed == 'LEFT' and self.mode != self.MODE_CALI:    #stop & select gait 1 
+        self.set_mode(self.MODE_IDLE)
+        self.set_gait(self.GAIT_WAVE)
+        self.reset_position = True
+      if self.tele_button_pressed == 'UP' and self.mode != self.MODE_CALI:      #stop & select gait 2  
+        self.set_mode(self.MODE_IDLE)
+        self.set_gait(self.GAIT_RIPP)
+        self.reset_position = True
+      if self.tele_button_pressed == 'RIGHT' and self.mode != self.MODE_CALI:   #stop & select gait 3
+        self.set_mode(self.MODE_IDLE)
+        self.set_gait(self.GAIT_TETR)
+        self.reset_position = True
+
+      
+      if self.tele_button_pressed == 'TRIANGLE':    #select walk mode
+        self.set_mode(self.MODE_WALK)
+        self.reset_position = True
+        
+      if self.tele_button_pressed == 'SQUARE':      #control x-y-z with joysticks mode
+        self.set_mode(self.MODE_CXYZ)
+        self.reset_position = True
+      if self.tele_button_pressed == 'CIRCLE':      #control y-p-r with joysticks mode
+        self.set_mode(self.MODE_CYPR)
+        self.reset_position = True
+      if self.tele_button_pressed == 'X':       #one leg lift mode
+        self.set_mode(self.MODE_OLEG)
+        self.reset_position = True
+
+      if self.mode == self.MODE_CALI:
+        self.process_gamepad_calibration()
+      
+      
+      
+  
+      
   def loop(self):
 
     #set up frame time
@@ -239,9 +320,12 @@ class Hexapod:
     if self.currentTime - self.previousTime > self.FRAME_TIME_MS:
       self.previousTime = self.currentTime
 
-      #read controller and process inputs
-      self.controller.read_gamepad(self.gamepad_vibrate) # TODO vibrate not implemented     
-      self.process_gamepad()
+      if self.telemetry:
+        self.process_telemetry_data()
+      else:
+        #read controller and process inputs
+        self.controller.read_gamepad(self.gamepad_vibrate) # TODO vibrate not implemented     
+        self.process_gamepad()
 
       #reset legs to home position when commanded
       if self.reset_position == True:
@@ -289,11 +373,6 @@ class Hexapod:
   # Process gamepad controller inputs
   #***********************************************************************
   def process_gamepad(self):
-    if telemetry:
-      if not is_received:
-        logger.info('no ctrl data')
-      else:
-        logger.info(ctrl_data)
     if self.controller.button_pressed(self.PAD_DOWN) and self.mode != self.MODE_CALI:    #stop & select gait 0
       self.set_mode(self.MODE_IDLE)
       self.set_gait(self.GAIT_TRIP)
@@ -331,16 +410,13 @@ class Hexapod:
         self.gait_speed = 1
       else:
         self.gait_speed = 0
-    if self.controller.button_pressed(self.BUT_SELECT) and not telemetry:      #set all servos to 90 degrees for calibration
+    if self.controller.button_pressed(self.BUT_SELECT):      #set all servos to 90 degrees for calibration
       if self.mode != self.MODE_CALI:
         #logger.info('WORKING')
         self.set_mode(self.MODE_CALI)
       else:
-        if ctrl_data['share'] == True:
-          self.set_mode(self.MODE_CALI)
-        else:
-          self.set_mode(self.MODE_IDLE)
-          self.set_gait(self.GAIT_DEFAULT)
+        self.set_mode(self.MODE_IDLE)
+        self.set_gait(self.GAIT_DEFAULT)
     if self.mode == self.MODE_CALI:
       self.process_gamepad_calibration()
     if self.controller.button_pressed(self.BUT_TL) or self.controller.button_pressed(self.BUT_TR):
@@ -357,39 +433,59 @@ class Hexapod:
 
 
   def process_gamepad_calibration(self):
-    #logger.info('WORKING')
-    pressed = False
-    if telemetry == True and ctrl_data['share'] == True:
-      
-      logger.info("coxa: %s", self.COXA_CAL)
-      logger.info("femur: %s", self.FEMUR_CAL)
-      logger.info("tibia: %s", self.TIBIA_CAL)
-      data, name, i = self.get_cal_pntr()
-      pressed = True
-    elif self.controller.button_pressed(self.BUT_SELECT):
-      logger.info("coxa: %s", self.COXA_CAL)
-      logger.info("femur: %s", self.FEMUR_CAL)
-      logger.info("tibia: %s", self.TIBIA_CAL)
-      data, name, i = self.get_cal_pntr()
-      pressed = True
-    if self.controller.button_pressed(self.PAD_UP):
-      data, name, i = self.get_cal_pntr()
-      data[i] = data[i] + 1
-      pressed = True
-      self.write_config()
-    elif self.controller.button_pressed(self.PAD_DOWN):
-      data, name, i = self.get_cal_pntr()
-      data[i] = data[i] - 1
-      pressed = True
-      self.write_config()
-    elif self.controller.button_pressed(self.PAD_LEFT):
-      data, name, i = self.get_cal_pntr(move = -1)
-      pressed = True
-    elif self.controller.button_pressed(self.PAD_RIGHT):
-      data, name, i = self.get_cal_pntr(move = 1)
-      pressed = True
-    if pressed:
-      logger.info(f"{name}[{i}] = {data[i]}")
+    #logger.info(self.ctrl_data['analog_data']['0'])
+    if self.telemetry:
+      pressed = False
+      if self.tele_button_pressed == 'share':
+        logger.info("coxa: %s", self.COXA_CAL)
+        logger.info("femur: %s", self.FEMUR_CAL)
+        logger.info("tibia: %s", self.TIBIA_CAL)
+        data, name, i = self.get_cal_pntr()
+        pressed = True
+      if self.tele_button_pressed == 'UP':
+        data, name, i = self.get_cal_pntr()
+        data[i] = data[i] + 1
+        pressed = True
+        self.write_config()
+      elif self.tele_button_pressed == 'DOWN':
+        data, name, i = self.get_cal_pntr()
+        data[i] = data[i] - 1
+        pressed = True
+        self.write_config()
+      elif self.tele_button_pressed == 'LEFT':
+        data, name, i = self.get_cal_pntr(move = -1)
+        pressed = True
+      elif self.tele_button_pressed == 'RIGHT':
+        data, name, i = self.get_cal_pntr(move = 1)
+        pressed = True
+      if pressed:
+        logger.info(f"{name}[{i}] = {data[i]}")
+    else:
+      pressed = False
+      if self.controller.button_pressed(self.BUT_SELECT):
+        logger.info("coxa: %s", self.COXA_CAL)
+        logger.info("femur: %s", self.FEMUR_CAL)
+        logger.info("tibia: %s", self.TIBIA_CAL)
+        data, name, i = self.get_cal_pntr()
+        pressed = True
+      if self.controller.button_pressed(self.PAD_UP):
+        data, name, i = self.get_cal_pntr()
+        data[i] = data[i] + 1
+        pressed = True
+        self.write_config()
+      elif self.controller.button_pressed(self.PAD_DOWN):
+        data, name, i = self.get_cal_pntr()
+        data[i] = data[i] - 1
+        pressed = True
+        self.write_config()
+      elif self.controller.button_pressed(self.PAD_LEFT):
+        data, name, i = self.get_cal_pntr(move = -1)
+        pressed = True
+      elif self.controller.button_pressed(self.PAD_RIGHT):
+        data, name, i = self.get_cal_pntr(move = 1)
+        pressed = True
+      if pressed:
+        logger.info(f"{name}[{i}] = {data[i]}")
 
 
   # I'm not proud about this functions
@@ -508,12 +604,21 @@ class Hexapod:
   # Group of 3 legs move forward while the other 3 legs provide support
   #***********************************************************************
   def tripod_gait(self):
-    #read commanded values from controller
-    val_x = self.controller.analog(self.THROTTLE_R) - self.controller.analog(self.THROTTLE_L)
-    commandedY = map(val_x, -255, 255, 127, -127)
-    
-    commandedX = map(self.controller.analog(self.AS_RY),0,255,127,-127) 
-    commandedR = map(self.controller.analog(self.AS_RX),0,255,127,-127)
+    if self.telemetry:
+      #read commanded values from telemetry
+      val_x = self.ctrl_data['analog_data']['5'] - self.ctrl_data['analog_data']['4']
+      commandedY = map(val_x, -1, 1, 127, -127)
+      
+      commandedX = map(self.ctrl_data['analog_data']['1'],-1,1,127,-127) 
+      commandedR = map(self.ctrl_data['analog_data']['0'],-1,1,127,-127)
+      pass
+    else:
+      #read commanded values from controller
+      val_x = self.controller.analog(self.THROTTLE_R) - self.controller.analog(self.THROTTLE_L)
+      commandedY = map(val_x, -255, 255, 127, -127)
+      
+      commandedX = map(self.controller.analog(self.AS_RY),0,255,127,-127) 
+      commandedR = map(self.controller.analog(self.AS_RX),0,255,127,-127)
       
     #if commands more than deadband then process
     if abs(commandedX) > 15 or abs(commandedY) > 15 or abs(commandedR) > 15 or self.tick>0:
